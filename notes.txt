@@ -1,0 +1,7 @@
+// Indexing for faster lookups on frequent queries
+use redis
+tasks
+dashboard
+reports
+payment
+profile

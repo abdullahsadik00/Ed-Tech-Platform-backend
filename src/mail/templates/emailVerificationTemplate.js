@@ -1,0 +1,1 @@
+exports.emailVerificationTemplate = async(req,res) =>{}
