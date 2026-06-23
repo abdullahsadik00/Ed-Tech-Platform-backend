@@ -179,6 +179,84 @@ export const getCourses = async (
   }
 };
 
+export const updateCourse = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const id = Number(req.params.id);
+    const course = await prisma.course.findUnique({ where: { id } });
+    if (!course) throw new CustomError(404, 'Course not found');
+    if (req.user?.role !== 'ADMIN' && course.instructorId !== req.user!.id) {
+      throw new CustomError(403, 'You do not own this course');
+    }
+
+    const updateSchema = courseSchema.partial().omit({ tags: true, subjects: true, prerequisites: true, requirements: true, learningOutcomes: true });
+    const data = updateSchema.parse(req.body);
+    const updated = await prisma.course.update({ where: { id }, data });
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const publishCourse = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const id = Number(req.params.id);
+    const course = await prisma.course.findUnique({
+      where: { id },
+      include: { sections: { include: { subSections: true } } },
+    });
+    if (!course) throw new CustomError(404, 'Course not found');
+    if (req.user?.role !== 'ADMIN' && course.instructorId !== req.user!.id) {
+      throw new CustomError(403, 'You do not own this course');
+    }
+
+    const hasContent = course.sections.some((s) => s.subSections.length > 0);
+    if (!hasContent) {
+      throw new CustomError(400, 'Course must have at least one section with one lesson before publishing');
+    }
+
+    const updated = await prisma.course.update({
+      where: { id },
+      data: {
+        published: !course.published,
+        publishedAt: !course.published ? new Date() : course.publishedAt,
+      },
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getInstructorCourses = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const courses = await prisma.course.findMany({
+      where: { instructorId: req.user!.id },
+      include: {
+        _count: { select: { enrollments: true, sections: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({ success: true, data: courses });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getCourseById = async (
   req: Request,
   res: Response,

@@ -4,6 +4,11 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
 import { authRoutes } from './routes/auth.routes';
+import { courseRoutes } from './routes/course.routes';
+import { sectionRoutes } from './routes/section.routes';
+import { subSectionRoutes } from './routes/subsection.routes';
+import { enrollmentRoutes } from './routes/enrollment.routes';
+import { progressRoutes } from './routes/progress.routes';
 import { errorHandler } from './middlewares/errorHandler';
 import { notFoundHandler } from './middlewares/notFoundHandler';
 
@@ -34,10 +39,11 @@ const limiter = rateLimit({
 app.use(limiter);
 
 app.use('/api/auth', authRoutes);
-// app.use('/api/courses', courseRoutes);
-// app.use('/api/users', userRoutes);
-// app.use('/api/enrollments', enrollmentRoutes);
-// app.use('/api/progress', progressRoutes);
+app.use('/api/courses', courseRoutes);
+app.use('/api/sections', sectionRoutes);
+app.use('/api/subsections', subSectionRoutes);
+app.use('/api/enrollments', enrollmentRoutes);
+app.use('/api/progress', progressRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
