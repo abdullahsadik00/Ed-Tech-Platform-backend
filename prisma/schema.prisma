@@ -91,7 +91,7 @@ model User {
   courseProgress        CourseProgress[]
   certificates          Certificate[]
   notifications         Notification[]
-  achievements          Achievement[]
+  achievements          Achievement[]          // implicit M2M — requires matching field on Achievement
   quizAttempts          QuizAttempt[]
   discussions           Discussion[]
   discussionReplies     DiscussionReply[]
@@ -486,7 +486,7 @@ model LoginHistory {
   location      String?
   device        String?
   loginAt       DateTime @default(now())
-  hasError      Boolean  @default(true)
+  hasError      Boolean  @default(false)
   failureReason String?
 
   // Relations

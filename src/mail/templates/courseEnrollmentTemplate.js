@@ -1,1 +1,0 @@
-exports.courseEnrollmentTemplate = async (req,res) => {}

@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import prisma from '../config/prisma';
 import { CustomError } from '../utils/CustomError';
-// import { CustomError } from '../utils/customError';
 
 const courseSchema = z.object({
   title: z.string().min(3),
@@ -27,6 +26,14 @@ const courseSchema = z.object({
   learningOutcomes: z.array(z.string()).optional(),
 });
 
+function generateSlug(title: string): string {
+  const base = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  return `${base}-${Date.now()}`;
+}
+
 export const createCourse = async (
   req: Request,
   res: Response,
@@ -42,13 +49,13 @@ export const createCourse = async (
     const course = await prisma.course.create({
       data: {
         ...validatedData,
+        slug: generateSlug(validatedData.title),
         instructor: { connect: { id: req.user.id } },
         tags: {
           create: validatedData.tags?.map((tagId) => ({
             tag: { connect: { id: tagId } },
           })),
         },
-        slug: '',
         subjects: {
           create: validatedData.subjects?.map((subjectId) => ({
             subject: { connect: { id: subjectId } },
@@ -81,16 +88,8 @@ export const createCourse = async (
             email: true,
           },
         },
-        tags: {
-          include: {
-            tag: true,
-          },
-        },
-        subjects: {
-          include: {
-            subject: true,
-          },
-        },
+        tags: { include: { tag: true } },
+        subjects: { include: { subject: true } },
       },
     });
 
@@ -125,62 +124,43 @@ export const getCourses = async (
       ...(featured && { featured: featured === 'true' }),
       ...(search && {
         OR: [
-          { title: { contains: search as string, mode: 'insensitive' } },
-          { description: { contains: search as string, mode: 'insensitive' } },
+          { title: { contains: search as string, mode: 'insensitive' as const } },
+          { description: { contains: search as string, mode: 'insensitive' as const } },
         ],
       }),
       ...(tags && {
         tags: {
           some: {
-            tagId: {
-              in: (tags as string).split(',').map(Number),
-            },
+            tagId: { in: (tags as string).split(',').map(Number) },
           },
         },
       }),
       ...(subjects && {
         subjects: {
           some: {
-            subjectId: {
-              in: (subjects as string).split(',').map(Number),
-            },
+            subjectId: { in: (subjects as string).split(',').map(Number) },
           },
         },
       }),
     };
 
     const courses = await prisma.course.findMany({
-      where: {},
+      where,
       include: {
         instructor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
+          select: { id: true, firstName: true, lastName: true },
         },
-        tags: {
-          include: {
-            tag: true,
-          },
-        },
-        subjects: {
-          include: {
-            subject: true,
-          },
-        },
+        tags: { include: { tag: true } },
+        subjects: { include: { subject: true } },
         _count: {
-          select: {
-            enrollments: true,
-            reviews: true,
-          },
+          select: { enrollments: true, reviews: true },
         },
       },
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit),
     });
 
-    const total = await prisma.course.count({ where: {} });
+    const total = await prisma.course.count({ where });
 
     res.json({
       success: true,
@@ -211,48 +191,23 @@ export const getCourseById = async (
       where: { id: Number(id) },
       include: {
         instructor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            bio: true,
-          },
+          select: { id: true, firstName: true, lastName: true, bio: true },
         },
-        sections: {
-          include: {
-            subSections: true,
-          },
-        },
-        tags: {
-          include: {
-            tag: true,
-          },
-        },
-        subjects: {
-          include: {
-            subject: true,
-          },
-        },
+        sections: { include: { subSections: true } },
+        tags: { include: { tag: true } },
+        subjects: { include: { subject: true } },
         prerequisites: true,
         requirements: true,
         learningOutcomes: true,
         reviews: {
           include: {
             user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                avatar: true,
-              },
+              select: { id: true, firstName: true, lastName: true, avatar: true },
             },
           },
         },
         _count: {
-          select: {
-            enrollments: true,
-            reviews: true,
-          },
+          select: { enrollments: true, reviews: true },
         },
       },
     });
@@ -269,153 +224,3 @@ export const getCourseById = async (
     next(error);
   }
 };
-// const Course = require('../models/Course');
-// const Tags = require('../models/Tags');
-// const User = require('../models/User');
-// const uploadImagetoCloudinary = require('../utils/imageUploader');
-
-// exports.createCourse = async (req, res) => {
-//   try {
-//     const { courseName, courseDescription, whatYouwillLearn, tags, price } =
-//       req.body;
-
-//     const { thumbnail } = req.files.courseThumbnailImage;
-//     if (
-//       !courseName ||
-//       !courseDescription ||
-//       !tags ||
-//       !price ||
-//       !thumbnail ||
-//       !whatYouwillLearn
-//     ) {
-//       return res.status(400).json({
-//         message: 'All fields are required',
-//         hasError: true,
-//       });
-//     }
-//     const instructorId = req.user.id;
-//     const instructorDetails = User.findById(instructorId);
-//     if (!instructorDetails) {
-//       return res.status(404).json({
-//         message: 'Instructor not found',
-//         hasError: true,
-//       });
-//     }
-//     const tagsDetails = Tags.findById(tags);
-//     if (!tagsDetails) {
-//       return res.status(400).json({
-//         message: 'Tag not found',
-//         hasError: true,
-//       });
-//     }
-
-//     const thumbnailImageUploaded = await uploadImagetoCloudinary(
-//       thumbnail,
-//       process.env.FOLDER_NAME
-//     );
-//     const newCourse = Course({
-//       courseName,
-//       courseDescription,
-//       whatYouwillLearn,
-//       tags: tagsDetails._id,
-//       price,
-//       thumbnail: thumbnailImageUploaded.secure_url,
-//       instructor: instructorDetails._id,
-//     });
-//     await User.findOneAndUpdate(
-//       instructorDetails._id,
-//       {
-//         $push: { courses: newCourse._id },
-//       },
-//       { new: true }
-//     );
-//     await Tags.findOneAndUpdate(
-//       { id: tagsDetails._id },
-//       {
-//         $push: {
-//           courses: newCourse._id,
-//         },
-//       },
-//       { new: true }
-//     );
-//     return res.status(200).json({
-//       hasErrors: false,
-//       data: newCourse,
-//       message: 'Course created successfully',
-//     });
-//   } catch (error) {
-//     return res.status(400).json({
-//       message: 'Failed to create course',
-//       hasError: true,
-//       error: error.message,
-//     });
-//   }
-// };
-
-// exports.getAllCourses = async (req, res) => {
-//   try {
-//     const allCourses = await Course.find(
-//       {},
-//       { courseName: true, price: true, thumbnail: true, instructor: true }
-//     )
-//       .populate('instructor')
-//       .exec();
-//     if (allCourses.length) {
-//       return res.status(200).json({
-//         hasErrors: false,
-//         data: allCourses,
-//         message: 'Courses fetched successfully',
-//       });
-//     }
-//   } catch (error) {
-//     return res.status(400).json({
-//       message: 'Failed to get courses',
-//       hasError: true,
-//       error: error.message,
-//     });
-//   }
-// };
-
-// exports.getCourseDetails = async (req, res) => {
-//   try {
-//     const { courseId } = req.body;
-//     const courseDetails = await Course.findById({ _id: courseId })
-//       .populate({
-//         path: 'instructor',
-//         populate: {
-//           path: 'additionalDetails',
-//         },
-//       })
-//       .populate({
-//         path: 'tags',
-//         populate: {
-//           path: 'courses',
-//         },
-//       })
-//       .populate({
-//         path: 'sections',
-//         populate: {
-//           path: 'SubSection',
-//         },
-//       })
-//       .populate('ratingAndreview')
-//       .exec();
-//     if (courseDetails) {
-//       return res.status(200).json({
-//         hasErrors: false,
-//         data: courseDetails,
-//         message: 'Course details fetched successfully',
-//       });
-//     } else {
-//       return res.status(404).json({
-//         hasError: true,
-//         message: 'Course not found',
-//       });
-//     }
-//   } catch (error) {
-//     return res.status(404).json({
-//       hasError: true,
-//       message: `Failed to get course details ${error}`,
-//     });
-//   }
-// };
