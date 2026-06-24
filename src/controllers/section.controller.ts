@@ -89,7 +89,22 @@ export const deleteSection = async (
       req.user!.role
     );
 
+    const subSectionIds = (
+      await prisma.subSection.findMany({
+        where: { sectionId: id },
+        select: { id: true },
+      })
+    ).map((s) => s.id);
+
+    // Clean up progress references before deleting subsections.
+    // SubSectionProgress rows cascade on subsection delete; the legacy
+    // CourseProgress.subSectionId pointer and the section-level M2M must be
+    // cleared explicitly to avoid FK violations.
     await prisma.$transaction([
+      prisma.courseProgress.updateMany({
+        where: { subSectionId: { in: subSectionIds } },
+        data: { subSectionId: null },
+      }),
       prisma.subSection.deleteMany({ where: { sectionId: id } }),
       prisma.section.delete({ where: { id } }),
     ]);

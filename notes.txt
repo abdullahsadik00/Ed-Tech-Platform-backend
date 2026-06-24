@@ -1,7 +1,10 @@
-// Indexing for faster lookups on frequent queries
-use redis
-tasks
-dashboard
-reports
-payment
-profile
+# Scratch notes — NOT implemented in v1. Kept as future ideas.
+#
+# Idea: add Redis caching for frequently-read, read-heavy endpoints once they
+# exist and show load. Candidates:
+#   - dashboard / reports aggregates
+#   - profile lookups
+#   - payment status (Phase 2)
+#
+# v1 has no Redis. Postgres indexes on hot query paths (see schema.prisma
+# @@index) are the current strategy.

@@ -6,8 +6,11 @@ import { CustomError } from '../utils/CustomError';
 const subSectionSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
+  // Must match the Prisma ContentType enum (schema.prisma) or the DB write
+  // throws. v1 editor only offers VIDEO + DOCUMENT; the rest are accepted for
+  // forward-compatibility with the schema.
   type: z
-    .enum(['VIDEO', 'DOCUMENT', 'QUIZ', 'ASSIGNMENT', 'LIVE_SESSION'])
+    .enum(['VIDEO', 'DOCUMENT', 'AUDIO', 'PRESENTATION', 'INTERACTIVE'])
     .default('VIDEO'),
   content: z.string().min(1),
   duration: z.number().int().min(0),
@@ -94,7 +97,16 @@ export const deleteSubSection = async (
       req.user!.role
     );
 
-    await prisma.subSection.delete({ where: { id } });
+    // Clean up progress references before deleting. SubSectionProgress rows
+    // cascade automatically; the legacy CourseProgress.subSectionId pointer
+    // must be nulled to avoid a FK violation.
+    await prisma.$transaction([
+      prisma.courseProgress.updateMany({
+        where: { subSectionId: id },
+        data: { subSectionId: null },
+      }),
+      prisma.subSection.delete({ where: { id } }),
+    ]);
 
     res.json({ success: true, data: { id } });
   } catch (error) {

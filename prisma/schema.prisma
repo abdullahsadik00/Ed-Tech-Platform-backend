@@ -172,6 +172,7 @@ model SubSection {
   section    Section          @relation(fields: [sectionId], references: [id])
   sectionId  Int
   progress   CourseProgress[]
+  completions SubSectionProgress[]
   quiz       Quiz?
   assignment Assignment?
   notes      Note[]
@@ -303,10 +304,28 @@ model CourseProgress {
   course            Course      @relation(fields: [courseId], references: [id])
   courseId          Int
   completedSections Section[]   @relation("CompletedSections")
+  completedSubSections SubSectionProgress[]
   SubSection        SubSection? @relation(fields: [subSectionId], references: [id])
   subSectionId      Int?
 
   @@unique([userId, courseId])
+}
+
+// Per-subsection (per-lesson) completion tracking. A row exists once a user has
+// completed a given subsection; course progress % = completed rows / total
+// subsections in the course.
+model SubSectionProgress {
+  id           Int      @id @default(autoincrement())
+  completedAt  DateTime @default(now())
+
+  // Relations
+  courseProgress   CourseProgress @relation(fields: [courseProgressId], references: [id], onDelete: Cascade)
+  courseProgressId Int
+  subSection       SubSection     @relation(fields: [subSectionId], references: [id], onDelete: Cascade)
+  subSectionId     Int
+
+  @@unique([courseProgressId, subSectionId])
+  @@index([subSectionId])
 }
 
 model RatingAndReview {

@@ -239,7 +239,7 @@ Add a video lesson to a section.
 }
 ```
 
-**`type` values:** `VIDEO` | `DOCUMENT` | `QUIZ` | `ASSIGNMENT` | `LIVE_SESSION`
+**`type` values:** `VIDEO` | `DOCUMENT` | `AUDIO` | `PRESENTATION` | `INTERACTIVE` (the v1 course editor offers `VIDEO` and `DOCUMENT`).
 
 ---
 

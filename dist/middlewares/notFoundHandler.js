@@ -4,7 +4,7 @@ exports.notFoundHandler = void 0;
 const notFoundHandler = (req, res) => {
     res.status(404).json({
         hasError: true,
-        message: 'Resourse not found',
+        message: 'Resource not found',
         errors: [],
     });
 };

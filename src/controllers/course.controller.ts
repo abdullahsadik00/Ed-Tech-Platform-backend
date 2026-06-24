@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { Prisma, Level } from '@prisma/client';
 import prisma from '../config/prisma';
 import { CustomError } from '../utils/CustomError';
 
@@ -118,9 +119,9 @@ export const getCourses = async (
       subjects,
     } = req.query;
 
-    const where = {
+    const where: Prisma.CourseWhereInput = {
       published: true,
-      ...(level && { level: level as string }),
+      ...(level && { level: level as Level }),
       ...(featured && { featured: featured === 'true' }),
       ...(search && {
         OR: [

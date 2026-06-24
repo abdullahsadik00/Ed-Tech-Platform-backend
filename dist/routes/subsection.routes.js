@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.subSectionRoutes = void 0;
+const express_1 = require("express");
+const subsection_controller_1 = require("../controllers/subsection.controller");
+const auth_1 = require("../middlewares/auth");
+const router = (0, express_1.Router)();
+exports.subSectionRoutes = router;
+router.put('/:id', auth_1.authenticate, (0, auth_1.requireRole)('INSTRUCTOR', 'ADMIN'), subsection_controller_1.updateSubSection);
+router.delete('/:id', auth_1.authenticate, (0, auth_1.requireRole)('INSTRUCTOR', 'ADMIN'), subsection_controller_1.deleteSubSection);

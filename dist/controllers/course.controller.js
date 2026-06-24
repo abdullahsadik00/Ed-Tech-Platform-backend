@@ -12,11 +12,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCourseById = exports.getCourses = exports.createCourse = void 0;
+exports.getCourseById = exports.getInstructorCourses = exports.publishCourse = exports.updateCourse = exports.getCourses = exports.createCourse = void 0;
 const zod_1 = require("zod");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const CustomError_1 = require("../utils/CustomError");
-// import { CustomError } from '../utils/customError';
 const courseSchema = zod_1.z.object({
     title: zod_1.z.string().min(3),
     description: zod_1.z.string().min(10),
@@ -39,6 +38,13 @@ const courseSchema = zod_1.z.object({
     requirements: zod_1.z.array(zod_1.z.string()).optional(),
     learningOutcomes: zod_1.z.array(zod_1.z.string()).optional(),
 });
+function generateSlug(title) {
+    const base = title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+    return `${base}-${Date.now()}`;
+}
 const createCourse = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d, _e, _f, _g;
     try {
@@ -47,11 +53,11 @@ const createCourse = (req, res, next) => __awaiter(void 0, void 0, void 0, funct
         }
         const validatedData = courseSchema.parse(req.body);
         const course = yield prisma_1.default.course.create({
-            data: Object.assign(Object.assign({}, validatedData), { instructor: { connect: { id: req.user.id } }, tags: {
+            data: Object.assign(Object.assign({}, validatedData), { slug: generateSlug(validatedData.title), instructor: { connect: { id: req.user.id } }, tags: {
                     create: (_c = validatedData.tags) === null || _c === void 0 ? void 0 : _c.map((tagId) => ({
                         tag: { connect: { id: tagId } },
                     })),
-                }, slug: '', subjects: {
+                }, subjects: {
                     create: (_d = validatedData.subjects) === null || _d === void 0 ? void 0 : _d.map((subjectId) => ({
                         subject: { connect: { id: subjectId } },
                     })),
@@ -79,16 +85,8 @@ const createCourse = (req, res, next) => __awaiter(void 0, void 0, void 0, funct
                         email: true,
                     },
                 },
-                tags: {
-                    include: {
-                        tag: true,
-                    },
-                },
-                subjects: {
-                    include: {
-                        subject: true,
-                    },
-                },
+                tags: { include: { tag: true } },
+                subjects: { include: { subject: true } },
             },
         });
         res.status(201).json({
@@ -112,51 +110,32 @@ const getCourses = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
         })), (tags && {
             tags: {
                 some: {
-                    tagId: {
-                        in: tags.split(',').map(Number),
-                    },
+                    tagId: { in: tags.split(',').map(Number) },
                 },
             },
         })), (subjects && {
             subjects: {
                 some: {
-                    subjectId: {
-                        in: subjects.split(',').map(Number),
-                    },
+                    subjectId: { in: subjects.split(',').map(Number) },
                 },
             },
         }));
         const courses = yield prisma_1.default.course.findMany({
-            where: {},
+            where,
             include: {
                 instructor: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                    },
+                    select: { id: true, firstName: true, lastName: true },
                 },
-                tags: {
-                    include: {
-                        tag: true,
-                    },
-                },
-                subjects: {
-                    include: {
-                        subject: true,
-                    },
-                },
+                tags: { include: { tag: true } },
+                subjects: { include: { subject: true } },
                 _count: {
-                    select: {
-                        enrollments: true,
-                        reviews: true,
-                    },
+                    select: { enrollments: true, reviews: true },
                 },
             },
             skip: (Number(page) - 1) * Number(limit),
             take: Number(limit),
         });
-        const total = yield prisma_1.default.course.count({ where: {} });
+        const total = yield prisma_1.default.course.count({ where });
         res.json({
             success: true,
             data: {
@@ -175,6 +154,73 @@ const getCourses = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
     }
 });
 exports.getCourses = getCourses;
+const updateCourse = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const id = Number(req.params.id);
+        const course = yield prisma_1.default.course.findUnique({ where: { id } });
+        if (!course)
+            throw new CustomError_1.CustomError(404, 'Course not found');
+        if (((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) !== 'ADMIN' && course.instructorId !== req.user.id) {
+            throw new CustomError_1.CustomError(403, 'You do not own this course');
+        }
+        const updateSchema = courseSchema.partial().omit({ tags: true, subjects: true, prerequisites: true, requirements: true, learningOutcomes: true });
+        const data = updateSchema.parse(req.body);
+        const updated = yield prisma_1.default.course.update({ where: { id }, data });
+        res.json({ success: true, data: updated });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.updateCourse = updateCourse;
+const publishCourse = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const id = Number(req.params.id);
+        const course = yield prisma_1.default.course.findUnique({
+            where: { id },
+            include: { sections: { include: { subSections: true } } },
+        });
+        if (!course)
+            throw new CustomError_1.CustomError(404, 'Course not found');
+        if (((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) !== 'ADMIN' && course.instructorId !== req.user.id) {
+            throw new CustomError_1.CustomError(403, 'You do not own this course');
+        }
+        const hasContent = course.sections.some((s) => s.subSections.length > 0);
+        if (!hasContent) {
+            throw new CustomError_1.CustomError(400, 'Course must have at least one section with one lesson before publishing');
+        }
+        const updated = yield prisma_1.default.course.update({
+            where: { id },
+            data: {
+                published: !course.published,
+                publishedAt: !course.published ? new Date() : course.publishedAt,
+            },
+        });
+        res.json({ success: true, data: updated });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.publishCourse = publishCourse;
+const getInstructorCourses = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const courses = yield prisma_1.default.course.findMany({
+            where: { instructorId: req.user.id },
+            include: {
+                _count: { select: { enrollments: true, sections: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json({ success: true, data: courses });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.getInstructorCourses = getInstructorCourses;
 const getCourseById = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
@@ -182,48 +228,23 @@ const getCourseById = (req, res, next) => __awaiter(void 0, void 0, void 0, func
             where: { id: Number(id) },
             include: {
                 instructor: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        bio: true,
-                    },
+                    select: { id: true, firstName: true, lastName: true, bio: true },
                 },
-                sections: {
-                    include: {
-                        subSections: true,
-                    },
-                },
-                tags: {
-                    include: {
-                        tag: true,
-                    },
-                },
-                subjects: {
-                    include: {
-                        subject: true,
-                    },
-                },
+                sections: { include: { subSections: true } },
+                tags: { include: { tag: true } },
+                subjects: { include: { subject: true } },
                 prerequisites: true,
                 requirements: true,
                 learningOutcomes: true,
                 reviews: {
                     include: {
                         user: {
-                            select: {
-                                id: true,
-                                firstName: true,
-                                lastName: true,
-                                avatar: true,
-                            },
+                            select: { id: true, firstName: true, lastName: true, avatar: true },
                         },
                     },
                 },
                 _count: {
-                    select: {
-                        enrollments: true,
-                        reviews: true,
-                    },
+                    select: { enrollments: true, reviews: true },
                 },
             },
         });
@@ -240,148 +261,3 @@ const getCourseById = (req, res, next) => __awaiter(void 0, void 0, void 0, func
     }
 });
 exports.getCourseById = getCourseById;
-// const Course = require('../models/Course');
-// const Tags = require('../models/Tags');
-// const User = require('../models/User');
-// const uploadImagetoCloudinary = require('../utils/imageUploader');
-// exports.createCourse = async (req, res) => {
-//   try {
-//     const { courseName, courseDescription, whatYouwillLearn, tags, price } =
-//       req.body;
-//     const { thumbnail } = req.files.courseThumbnailImage;
-//     if (
-//       !courseName ||
-//       !courseDescription ||
-//       !tags ||
-//       !price ||
-//       !thumbnail ||
-//       !whatYouwillLearn
-//     ) {
-//       return res.status(400).json({
-//         message: 'All fields are required',
-//         hasError: true,
-//       });
-//     }
-//     const instructorId = req.user.id;
-//     const instructorDetails = User.findById(instructorId);
-//     if (!instructorDetails) {
-//       return res.status(404).json({
-//         message: 'Instructor not found',
-//         hasError: true,
-//       });
-//     }
-//     const tagsDetails = Tags.findById(tags);
-//     if (!tagsDetails) {
-//       return res.status(400).json({
-//         message: 'Tag not found',
-//         hasError: true,
-//       });
-//     }
-//     const thumbnailImageUploaded = await uploadImagetoCloudinary(
-//       thumbnail,
-//       process.env.FOLDER_NAME
-//     );
-//     const newCourse = Course({
-//       courseName,
-//       courseDescription,
-//       whatYouwillLearn,
-//       tags: tagsDetails._id,
-//       price,
-//       thumbnail: thumbnailImageUploaded.secure_url,
-//       instructor: instructorDetails._id,
-//     });
-//     await User.findOneAndUpdate(
-//       instructorDetails._id,
-//       {
-//         $push: { courses: newCourse._id },
-//       },
-//       { new: true }
-//     );
-//     await Tags.findOneAndUpdate(
-//       { id: tagsDetails._id },
-//       {
-//         $push: {
-//           courses: newCourse._id,
-//         },
-//       },
-//       { new: true }
-//     );
-//     return res.status(200).json({
-//       hasErrors: false,
-//       data: newCourse,
-//       message: 'Course created successfully',
-//     });
-//   } catch (error) {
-//     return res.status(400).json({
-//       message: 'Failed to create course',
-//       hasError: true,
-//       error: error.message,
-//     });
-//   }
-// };
-// exports.getAllCourses = async (req, res) => {
-//   try {
-//     const allCourses = await Course.find(
-//       {},
-//       { courseName: true, price: true, thumbnail: true, instructor: true }
-//     )
-//       .populate('instructor')
-//       .exec();
-//     if (allCourses.length) {
-//       return res.status(200).json({
-//         hasErrors: false,
-//         data: allCourses,
-//         message: 'Courses fetched successfully',
-//       });
-//     }
-//   } catch (error) {
-//     return res.status(400).json({
-//       message: 'Failed to get courses',
-//       hasError: true,
-//       error: error.message,
-//     });
-//   }
-// };
-// exports.getCourseDetails = async (req, res) => {
-//   try {
-//     const { courseId } = req.body;
-//     const courseDetails = await Course.findById({ _id: courseId })
-//       .populate({
-//         path: 'instructor',
-//         populate: {
-//           path: 'additionalDetails',
-//         },
-//       })
-//       .populate({
-//         path: 'tags',
-//         populate: {
-//           path: 'courses',
-//         },
-//       })
-//       .populate({
-//         path: 'sections',
-//         populate: {
-//           path: 'SubSection',
-//         },
-//       })
-//       .populate('ratingAndreview')
-//       .exec();
-//     if (courseDetails) {
-//       return res.status(200).json({
-//         hasErrors: false,
-//         data: courseDetails,
-//         message: 'Course details fetched successfully',
-//       });
-//     } else {
-//       return res.status(404).json({
-//         hasError: true,
-//         message: 'Course not found',
-//       });
-//     }
-//   } catch (error) {
-//     return res.status(404).json({
-//       hasError: true,
-//       message: `Failed to get course details ${error}`,
-//     });
-//   }
-// };

@@ -19,27 +19,30 @@ export const getCourseProgress = async (
     const progress = await prisma.courseProgress.findUnique({
       where: { userId_courseId: { userId, courseId } },
       include: {
-        completedSections: { select: { id: true } },
+        completedSubSections: { select: { subSectionId: true } },
       },
     });
 
     if (!progress) {
-      return res.json({
+      res.json({
         success: true,
         data: {
           progress: 0,
-          completedSectionIds: [],
+          completedSubSectionIds: [],
           lastAccessed: null,
           timeSpent: 0,
         },
       });
+      return;
     }
 
     res.json({
       success: true,
       data: {
         progress: progress.progress,
-        completedSectionIds: progress.completedSections.map((s) => s.id),
+        completedSubSectionIds: progress.completedSubSections.map(
+          (s) => s.subSectionId
+        ),
         lastAccessed: progress.lastAccessed,
         timeSpent: progress.timeSpent,
       },
@@ -73,60 +76,49 @@ export const markSubSectionComplete = async (
       throw new CustomError(400, 'Subsection does not belong to this course');
     }
 
-    const sectionId = subSection.sectionId;
-
-    let progressRecord = await prisma.courseProgress.findUnique({
+    // Ensure a CourseProgress row exists for this (user, course).
+    const progressRecord = await prisma.courseProgress.upsert({
       where: { userId_courseId: { userId, courseId } },
-      include: { completedSections: { select: { id: true } } },
+      create: { userId, courseId, progress: 0 },
+      update: {},
     });
 
-    if (!progressRecord) {
-      progressRecord = await prisma.courseProgress.create({
-        data: { userId, courseId, progress: 0 },
-        include: { completedSections: { select: { id: true } } },
-      });
-    }
-
-    const alreadyComplete = progressRecord.completedSections.some(
-      (s) => s.id === sectionId
-    );
-
-    const totalSections = await prisma.section.count({ where: { courseId } });
-
-    let completedCount = progressRecord.completedSections.length;
-
-    const updated = await prisma.courseProgress.update({
-      where: { id: progressRecord.id },
-      data: {
-        lastAccessed: new Date(),
-        subSectionId,
-        ...(alreadyComplete
-          ? {}
-          : {
-              completedSections: { connect: { id: sectionId } },
-            }),
+    // Mark this subsection complete (idempotent via the unique constraint).
+    await prisma.subSectionProgress.upsert({
+      where: {
+        courseProgressId_subSectionId: {
+          courseProgressId: progressRecord.id,
+          subSectionId,
+        },
       },
-      include: { completedSections: { select: { id: true } } },
+      create: { courseProgressId: progressRecord.id, subSectionId },
+      update: {},
     });
 
-    if (!alreadyComplete) {
-      completedCount = updated.completedSections.length;
-    }
+    // Recompute progress as completed subsections / total subsections in course.
+    const totalSubSections = await prisma.subSection.count({
+      where: { section: { courseId } },
+    });
+    const completedCount = await prisma.subSectionProgress.count({
+      where: { courseProgressId: progressRecord.id },
+    });
 
     const newProgress =
-      totalSections > 0 ? (completedCount / totalSections) * 100 : 0;
+      totalSubSections > 0 ? (completedCount / totalSubSections) * 100 : 0;
 
     const final = await prisma.courseProgress.update({
       where: { id: progressRecord.id },
-      data: { progress: newProgress },
-      include: { completedSections: { select: { id: true } } },
+      data: { progress: newProgress, lastAccessed: new Date() },
+      include: { completedSubSections: { select: { subSectionId: true } } },
     });
 
     res.json({
       success: true,
       data: {
         progress: final.progress,
-        completedSectionIds: final.completedSections.map((s) => s.id),
+        completedSubSectionIds: final.completedSubSections.map(
+          (s) => s.subSectionId
+        ),
       },
     });
   } catch (error) {
