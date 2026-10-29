@@ -23,10 +23,18 @@ if (missingVars.length > 0) {
 
 const app = express();
 
+// Behind Vercel's proxy: trust the first hop so rate limiting keys on the real client IP.
+app.set('trust proxy', 1);
+
+// CLIENT_URL may list several origins, comma-separated (e.g. production + local dev).
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim());
+
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
   })
 );
@@ -38,6 +46,10 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+app.get('/api/health', (_req, res) => {
+  res.json({ success: true, data: { status: 'ok' } });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/sections', sectionRoutes);
@@ -48,8 +60,12 @@ app.use('/api/progress', progressRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3000;
+// On Vercel the exported app is invoked as a serverless function; locally we listen.
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+export default app;

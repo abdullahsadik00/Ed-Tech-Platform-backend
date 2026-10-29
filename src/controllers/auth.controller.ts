@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import prisma from '../config/prisma';
@@ -10,7 +10,8 @@ const signupSchema = z.object({
   lastName: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(6),
-  role: z.enum(['ADMIN', 'STUDENT', 'INSTRUCTOR']).default('STUDENT'),
+  // ADMIN is never self-assignable; admins are created out of band.
+  role: z.enum(['STUDENT', 'INSTRUCTOR']).default('STUDENT'),
 });
 
 export const signUp = async (
