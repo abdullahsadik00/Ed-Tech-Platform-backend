@@ -8,8 +8,6 @@ export const errorHandler: ErrorRequestHandler = (
   res: Response,
   next: NextFunction
 ): void => {
-  console.error(err);
-
   if (err instanceof CustomError) {
     res.status(err.statusCode).json({
       hasError: true,
@@ -28,6 +26,8 @@ export const errorHandler: ErrorRequestHandler = (
     return;
   }
 
+  // Only unexpected errors are logged; 4xx responses are normal API behaviour.
+  console.error(err);
   res.status(500).json({
     hasError: true,
     message: 'Internal Server Error',

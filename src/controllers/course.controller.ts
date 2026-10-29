@@ -291,7 +291,11 @@ export const getCourseById = async (
       },
     });
 
-    if (!course) {
+    // Drafts are visible only to their instructor and admins; everyone else
+    // gets the same 404 as a missing course.
+    const canSeeDraft =
+      req.user?.role === 'ADMIN' || req.user?.id === course?.instructorId;
+    if (!course || (!course.published && !canSeeDraft)) {
       throw new CustomError(404, 'Course not found');
     }
 

@@ -14,7 +14,7 @@ import {
   enrollInCourse,
   checkEnrollment,
 } from '../controllers/enrollment.controller';
-import { authenticate, requireRole } from '../middlewares/auth';
+import { authenticate, optionalAuthenticate, requireRole } from '../middlewares/auth';
 
 const router = Router();
 
@@ -25,7 +25,7 @@ router.get(
   requireRole('INSTRUCTOR', 'ADMIN'),
   getInstructorCourses
 );
-router.get('/:id', getCourseById);
+router.get('/:id', optionalAuthenticate, getCourseById);
 
 router.post(
   '/',

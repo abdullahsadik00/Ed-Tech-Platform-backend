@@ -104,6 +104,25 @@ npx prisma migrate dev --name <name>  # create + apply a migration
 npx prisma generate                   # regenerate the client after schema edits
 ```
 
+## Testing
+
+[![CI](https://github.com/abdullahsadik00/Ed-Tech-Platform-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/abdullahsadik00/Ed-Tech-Platform-backend/actions/workflows/ci.yml)
+
+Integration tests (Vitest + Supertest) call the real Express app against a real PostgreSQL database. Nothing is mocked. They cover:
+
+- **Auth:** signup and login, admin self-signup blocked, field-level validation errors, the same 401 for a wrong password and an unknown email, missing and forged tokens
+- **Access control:** students can't create courses, and instructors can't edit other instructors' courses
+- **Visibility:** drafts are hidden from the public catalog and from everyone except their instructor
+- **Enrollment:** free courses only, exactly once, no drafts
+- **Progress:** percentage tracking, idempotent completion, lessons from other courses rejected
+
+```bash
+createdb edtech_test
+DATABASE_URL="postgresql://localhost:5432/edtech_test" npm test
+```
+
+CI runs the suite on every push against a Postgres 16 service container.
+
 ## Notes on scope
 
 The Prisma schema models many future features (quizzes, assignments,

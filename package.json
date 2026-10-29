@@ -9,7 +9,9 @@
     "start": "node dist/index.js",
     "postinstall": "prisma generate",
     "db:seed": "prisma db seed",
-    "vercel-build": "prisma migrate deploy && prisma db seed && tsc"
+    "vercel-build": "prisma migrate deploy && prisma db seed && tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",
@@ -31,9 +33,12 @@
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.5",
+    "@types/supertest": "^6.0.2",
     "prisma": "^6.2.1",
+    "supertest": "^7.0.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
