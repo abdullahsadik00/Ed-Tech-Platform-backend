@@ -6,6 +6,18 @@ management, enrollment, and per-lesson progress tracking.
 Pairs with the [Ed-Tech Platform frontend](https://github.com/abdullahsadik00/Ed-Tech-Platform-frontend)
 (React + Vite).
 
+**Live API:** https://ed-tech-platform-backend-ten.vercel.app (health check at [`/api/health`](https://ed-tech-platform-backend-ten.vercel.app/api/health)), used by the [live frontend](https://ed-tech-platform-frontend-two.vercel.app).
+
+## Deployment
+
+Runs on Vercel as a serverless Express function, with PostgreSQL on Neon. Each production deploy runs `vercel-build`:
+
+1. `prisma migrate deploy` applies pending migrations over the direct (unpooled) connection.
+2. `prisma db seed` (`prisma/seed.ts`) upserts the demo student and instructor and rebuilds the three demo courses.
+3. `tsc` builds the app.
+
+Production environment variables: `DATABASE_URL` and `DATABASE_URL_UNPOOLED` (from the Neon integration), `JWT_SECRET`, and `CLIENT_URL` (comma-separated allowed origins).
+
 ## Tech stack
 
 - **Node.js** + **Express** + **TypeScript**
